@@ -324,11 +324,14 @@ PROCESS is a http-request process."
 (defun helm-esa-get-url (&optional page)
   "Return esa API endpoint for searching articles.
 PAGE is a natural number.  If it doesn't set, it equal to 1."
-  (format "https://api.esa.io/v1/teams/%s/posts?q=%s&page=%d&per_page=%d"
+  (let ((url-query `((per_page ,helm-esa-api-per-page))))
+    (if page
+	(setq url-query (cons `(page ,page) url-query)))
+    (if (>= (length helm-esa-search-query) 1)
+	(setq url-query (cons `(q ,helm-esa-search-query) url-query)))
+  (format "https://api.esa.io/v1/teams/%s/posts?%s"
 	  helm-esa-team-name
-	  (url-hexify-string helm-esa-search-query)
-	  (if page page 1)
-	  helm-esa-api-per-page))
+	  (url-build-query-string url-query))))
 
 (defun helm-esa-find-curl-program ()
   "Return an appropriate `curl' program pathname or error if not found."
