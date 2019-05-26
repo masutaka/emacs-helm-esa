@@ -173,6 +173,18 @@ Use `helm-esa-get-url' if URL is nil."
 			curl-args))
       (set-process-sentinel proc #'helm-esa-http-request-sentinel))))
 
+(defun helm-esa-get-url (&optional page)
+  "Return esa API endpoint for searching articles.
+PAGE is a natural number.  If it doesn't set, it equal to 1."
+  (let ((url-query `((per_page ,helm-esa-api-per-page))))
+    (if page
+	(setq url-query (cons `(page ,page) url-query)))
+    (if (>= (length helm-esa-search-query) 1)
+	(setq url-query (cons `(q ,helm-esa-search-query) url-query)))
+  (format "https://api.esa.io/v1/teams/%s/posts?%s"
+	  helm-esa-team-name
+	  (url-build-query-string url-query))))
+
 (defun helm-esa-http-request-sentinel (process _event)
   "Handle a response of `helm-esa-http-request'.
 PROCESS is a http-request process.
@@ -320,18 +332,6 @@ PROCESS is a http-request process."
   (setq helm-esa-curl-program
 	(helm-esa-find-curl-program))
   (helm-esa-set-timer))
-
-(defun helm-esa-get-url (&optional page)
-  "Return esa API endpoint for searching articles.
-PAGE is a natural number.  If it doesn't set, it equal to 1."
-  (let ((url-query `((per_page ,helm-esa-api-per-page))))
-    (if page
-	(setq url-query (cons `(page ,page) url-query)))
-    (if (>= (length helm-esa-search-query) 1)
-	(setq url-query (cons `(q ,helm-esa-search-query) url-query)))
-  (format "https://api.esa.io/v1/teams/%s/posts?%s"
-	  helm-esa-team-name
-	  (url-build-query-string url-query))))
 
 (defun helm-esa-find-curl-program ()
   "Return an appropriate `curl' program pathname or error if not found."
