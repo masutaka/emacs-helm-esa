@@ -5,7 +5,7 @@
 ;; Author: Takashi Masuda <masutaka.net@gmail.com>
 ;; URL: https://github.com/masutaka/emacs-helm-esa
 ;; Version: 1.0.0
-;; Package-Requires: ((helm "3.2"))
+;; Package-Requires: ((emacs "24") (helm "3.2"))
 
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
