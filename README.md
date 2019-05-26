@@ -42,11 +42,11 @@ The required scope is `Read` for `helm-esa-access-token`.
 
 ### `helm-esa`
 
-* A function to be able to select your Esa Stocks
+* A function to be able to select the searched esa articles
 
 ### `helm-esa-source`
 
-* A helm source for your Esa Stocks
+* A helm source for the searched esa articles
 
 ### `helm-esa-search-query`
 
