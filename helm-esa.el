@@ -1,4 +1,4 @@
-;;; helm-esa.el --- esa with helm interface -*- lexical-binding: t; -*-
+;;; helm-esa.el --- Esa with helm interface -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2019 by Takashi Masuda
 
