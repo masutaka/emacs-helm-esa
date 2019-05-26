@@ -225,7 +225,7 @@ Should to call in `helm-esa-http-buffer-name'."
   "Insert esa article as the format of `helm-esa-file'.
 Argument RESPONSE-BODY is http response body as a json"
   (let ((articles (helm-esa-articles response-body))
-	article category name format-tags url format-article)
+	article category name format-tags url)
     (dotimes (i (length articles))
       (setq article (aref articles i)
 	    category (helm-esa-article-category article)
