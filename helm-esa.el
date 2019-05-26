@@ -132,7 +132,7 @@ Argument CANDIDATE a line string of a article."
 
 (defvar helm-esa-source
   (helm-build-in-buffer-source "esa articles"
-    :init 'helm-esa-load
+    :init #'helm-esa-load
     :action 'helm-esa-action
     :candidate-number-limit helm-esa-candidate-number-limit
     :multiline t
@@ -166,12 +166,12 @@ Use `helm-esa-get-url' if URL is nil."
 	    (kill-buffer work-buffer-name))
 	(get-buffer-create work-buffer-name))
       (helm-esa-http-debug-start)
-      (setq proc (apply 'start-process
+      (setq proc (apply #'start-process
 			proc-name
 			http-buffer-name
 			helm-esa-curl-program
 			curl-args))
-      (set-process-sentinel proc 'helm-esa-http-request-sentinel))))
+      (set-process-sentinel proc #'helm-esa-http-request-sentinel))))
 
 (defun helm-esa-http-request-sentinel (process _event)
   "Handle a response of `helm-esa-http-request'.
