@@ -5,7 +5,7 @@
 ;; Author: Takashi Masuda <masutaka.net@gmail.com>
 ;; URL: https://github.com/masutaka/emacs-helm-esa
 ;; Version: 1.0.0
-;; Package-Requires: ((emacs "24") (helm "3.2"))
+;; Package-Requires: ((emacs "26.2") (helm "3.2") (request "0.3.0"))
 
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -25,8 +25,10 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'helm)
 (require 'json)
+(require 'request)
 
 (defgroup helm-esa nil
   "esa with helm interface"
@@ -76,10 +78,6 @@ See https://docs.esa.io/posts/104"
 (defvar helm-esa-api-per-page 100
   "Page size of esa API.
 See https://docs.esa.io/posts/102")
-
-(defvar helm-esa-curl-program nil
-  "Cache a result of `helm-esa-find-curl-program'.
-DO NOT SET VALUE MANUALLY.")
 
 (defconst helm-esa-http-buffer-name " *helm-esa-http*"
   "HTTP Working buffer name of `helm-esa-http-request'.")
@@ -153,25 +151,29 @@ Argument CANDIDATE a line string of a article."
 (defun helm-esa-http-request (&optional url)
   "Make a new HTTP request for create `helm-esa-file'.
 Use `helm-esa-get-url' if URL is nil."
-  (let ((http-buffer-name helm-esa-http-buffer-name)
-	(work-buffer-name helm-esa-work-buffer-name)
-	(proc-name "helm-esa")
-	(curl-args `("--include" "-X" "GET" "--compressed"
-		     "--header" ,(concat "Authorization: Bearer " helm-esa-access-token)
-		     ,(if url url (helm-esa-get-url))))
-	proc)
-    (unless (get-buffer-process http-buffer-name)
-      (unless url ;; 1st page
-	(if (get-buffer work-buffer-name)
-	    (kill-buffer work-buffer-name))
-	(get-buffer-create work-buffer-name))
-      (helm-esa-http-debug-start)
-      (setq proc (apply #'start-process
-			proc-name
-			http-buffer-name
-			helm-esa-curl-program
-			curl-args))
-      (set-process-sentinel proc #'helm-esa-http-request-sentinel))))
+  (unless url ;; 1st page
+    (if (get-buffer helm-esa-work-buffer-name)
+	(kill-buffer helm-esa-work-buffer-name))
+    (get-buffer-create helm-esa-work-buffer-name))
+  (helm-esa-http-debug-start)
+  (request
+   (if url url (helm-esa-get-url))
+   :headers `(("Authorization" . ,(concat "Bearer " helm-esa-access-token)))
+   :parser 'json-read
+   :success (cl-function
+	     (lambda (&key data response &allow-other-keys)
+	       (helm-esa-http-debug-finish-success (request-response-url response))
+	       (let ((next-url))
+		 (with-current-buffer (get-buffer helm-esa-work-buffer-name)
+		   (goto-char (point-max))
+		   (helm-esa-insert-articles data)
+		   (setq next-url (helm-esa-next-url data))
+		   (if next-url
+		       (helm-esa-http-request next-url)
+		     (write-region (point-min) (point-max) helm-esa-file))))))
+   :error (cl-function
+	   (lambda (&key error-thrown response &allow-other-keys)
+	     (helm-esa-http-debug-finish-error (request-response-url response) error-thrown)))))
 
 (defun helm-esa-get-url (&optional page)
   "Return esa API endpoint for searching articles.
@@ -185,54 +187,6 @@ PAGE is a natural number.  If it doesn't set, it equal to 1."
 	  helm-esa-team-name
 	  (url-build-query-string url-query))))
 
-(defun helm-esa-http-request-sentinel (process _event)
-  "Handle a response of `helm-esa-http-request'.
-PROCESS is a http-request process.
-_EVENT is a string describing the type of event.
-If next-url is exist, requests it.
-If the response is invalid, stops to request."
-  (let ((http-buffer-name helm-esa-http-buffer-name))
-    (condition-case nil
-	(let (response-body next-url)
-	  (with-current-buffer (get-buffer http-buffer-name)
-	    (unless (helm-esa-valid-http-responsep process)
-	      (error "Invalid http response"))
-	    (setq response-body (helm-esa-response-body))
-	    (setq next-url (helm-esa-next-url response-body)))
-	  (kill-buffer http-buffer-name)
-	  (with-current-buffer (get-buffer helm-esa-work-buffer-name)
-	    (goto-char (point-max))
-	    (helm-esa-insert-articles response-body)
-	    (if next-url
-		(helm-esa-http-request next-url)
-	      (write-region (point-min) (point-max) helm-esa-file))))
-      (error
-       (kill-buffer http-buffer-name)))))
-
-(defun helm-esa-valid-http-responsep (process)
-  "Return if the http response is valid.
-Argument PROCESS is a http-request process.
-Should to call in `helm-esa-http-buffer-name'."
-  (save-excursion
-    (let ((result))
-      (goto-char (point-min))
-      (setq result (re-search-forward "^HTTP/2 200" (point-at-eol) t))
-      (helm-esa-http-debug-finish result process)
-      result)))
-
-(defun helm-esa-point-of-separator ()
-  "Return point between header and body of the http response, as an integer."
-  (save-excursion
-    (goto-char (point-min))
-    (re-search-forward "^?$" nil t)))
-
-(defun helm-esa-response-body ()
-  "Read http response body as a json.
-Should to call in `helm-esa-http-buffer-name'."
-  (json-read-from-string
-   (buffer-substring-no-properties
-    (+ (helm-esa-point-of-separator) 1) (point-max))))
-
 (defun helm-esa-insert-articles (response-body)
   "Insert esa article as the format of `helm-esa-file'.
 Argument RESPONSE-BODY is http response body as a json"
@@ -245,9 +199,11 @@ Argument RESPONSE-BODY is http response body as a json"
 	    format-tags (helm-esa-article-format-tags article)
 	    url (helm-esa-article-url article))
       (insert
-       (if category
-	   (format "%s/%s %s [href:%s]\n" category name format-tags url)
-	 (format "%s %s [href:%s]\n" name format-tags url))))))
+       (decode-coding-string
+	(if category
+	    (format "%s/%s %s [href:%s]\n" category name format-tags url)
+	  (format "%s %s [href:%s]\n" name format-tags url))
+	'utf-8)))))
 
 (defun helm-esa-next-url (response-body)
   "Return the next page url from RESPONSE-BODY."
@@ -294,14 +250,26 @@ Argument RESPONSE-BODY is http response body as a json"
   "Start debug mode."
   (setq helm-esa-debug-start-time (current-time)))
 
-(defun helm-esa-http-debug-finish (result process)
+(defun helm-esa-http-debug-finish-success (url)
   "Stop debug mode.
-RESULT is boolean.
-PROCESS is a http-request process."
+SYMBOL-STATUS is symbol.  e.g: success
+URL is a request url."
   (if helm-esa-debug-mode
-      (message "[esa] %s to GET %s (%0.1fsec) at %s."
-	       (if result "Success" "Failure")
-	       (car (last (process-command process)))
+      (message "[esa] Succeed to GET %s (%0.1fsec) at %s."
+	       url
+	       (time-to-seconds
+		(time-subtract (current-time)
+			       helm-esa-debug-start-time))
+	       (format-time-string "%Y-%m-%d %H:%M:%S" (current-time)))))
+
+(defun helm-esa-http-debug-finish-error (url error-thrown)
+  "Stop debug mode for error.
+URL is a request url.
+ERROR-THROWN is (ERROR-SYMBOL . DATA), or nil."
+  (if helm-esa-debug-mode
+      (message "[esa] Fail %S to GET %s (%0.1fsec) at %s."
+	       error-thrown
+	       url
 	       (time-to-seconds
 		(time-subtract (current-time)
 			       helm-esa-debug-start-time))
@@ -329,15 +297,7 @@ PROCESS is a http-request process."
     (error "Variable `helm-esa-team-name' is nil"))
   (unless helm-esa-access-token
     (error "Variable `helm-esa-access-token' is nil"))
-  (setq helm-esa-curl-program
-	(helm-esa-find-curl-program))
   (helm-esa-set-timer))
-
-(defun helm-esa-find-curl-program ()
-  "Return an appropriate `curl' program pathname or error if not found."
-  (or
-   (executable-find "curl")
-   (error "Cannot find `curl' helm-esa.el requires")))
 
 (provide 'helm-esa)
 

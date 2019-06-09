@@ -22,7 +22,6 @@ You can open esa articles to the web browser using helm interface.
 
 * Emacs 26.2 or higher
 * helm 3.2 or higher
-* curl
 
 ## Installation
 
