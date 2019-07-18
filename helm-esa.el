@@ -232,7 +232,25 @@ Argument RESPONSE-BODY is http response body as a json"
 
 (defun helm-esa-article-name (article)
   "Return a name of ARTICLE."
-  (cdr (assoc 'name article)))
+  (helm-esa-unescape
+   (cdr (assoc 'name article))))
+
+(defun helm-esa-unescape (str)
+  "Unescape STR."
+  (helm-esa-unescape-sharp
+   (helm-esa-unescape-slash str)))
+
+(defun helm-esa-unescape-sharp (str)
+  "Unescape '&#35;' in STR to '#'."
+  (if (string-match "&#35;" str)
+      (replace-match "#" t t str)
+    str))
+
+(defun helm-esa-unescape-slash (str)
+  "Unescape '&#47;' in STR to '/'."
+  (if (string-match "&#47;" str)
+      (replace-match "/" t t str)
+    str))
 
 (defun helm-esa-article-url (article)
   "Return a url of ARTICLE."
