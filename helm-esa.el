@@ -29,6 +29,7 @@
 (require 'helm)
 (require 'json)
 (require 'request)
+(require 'subr-x)
 
 (defgroup helm-esa nil
   "esa with helm interface"
@@ -242,9 +243,9 @@ Argument RESPONSE-BODY is http response body as a json"
   (let ((result ""))
     (mapc
      (lambda (tag)
-       (setq result (format "%s[%s]" result tag)))
+       (setq result (concat result " #" tag)))
      (helm-esa-article-tags article))
-    result))
+    (string-trim result)))
 
 (defun helm-esa-article-tags (article)
   "Return tags of ARTICLE, as an list."
