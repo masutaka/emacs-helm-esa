@@ -191,9 +191,10 @@ PAGE is a natural number.  If it doesn't set, it equal to 1."
   "Insert esa article as the format of `helm-esa-file'.
 Argument RESPONSE-BODY is http response body as a json"
   (let ((articles (helm-esa-articles response-body))
-	article category name format-tags url)
+	article format-wip category name format-tags url)
     (dotimes (i (length articles))
       (setq article (aref articles i)
+	    format-wip (helm-esa-article-format-wip article)
 	    category (helm-esa-article-category article)
 	    name (helm-esa-article-name article)
 	    format-tags (helm-esa-article-format-tags article)
@@ -201,8 +202,8 @@ Argument RESPONSE-BODY is http response body as a json"
       (insert
        (decode-coding-string
 	(if category
-	    (format "%s/%s %s [href:%s]\n" category name format-tags url)
-	  (format "%s %s [href:%s]\n" name format-tags url))
+	    (format "%s%s/%s %s [href:%s]\n" format-wip category name format-tags url)
+	  (format "%s%s %s [href:%s]\n" format-wip name format-tags url))
 	'utf-8)))))
 
 (defun helm-esa-next-url (response-body)
@@ -222,6 +223,11 @@ Argument RESPONSE-BODY is http response body as a json"
 (defun helm-esa-article-category (article)
   "Return a category of ARTICLE."
   (cdr (assoc 'category article)))
+
+(defun helm-esa-article-format-wip (article)
+  "Return if the ARTICLE is WIP."
+  (if (eq (cdr (assoc 'wip article)) t)
+      "[WIP] " ""))
 
 (defun helm-esa-article-name (article)
   "Return a name of ARTICLE."
